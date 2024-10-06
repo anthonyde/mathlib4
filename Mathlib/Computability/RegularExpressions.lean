@@ -1,10 +1,11 @@
 /-
 Copyright (c) 2020 Fox Thomson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Fox Thomson
+Authors: Fox Thomson, Anthony DeRossi
 -/
 import Mathlib.Computability.Language
 import Mathlib.Tactic.AdaptationNote
+import Mathlib.Tactic.Linarith
 
 /-!
 # Regular Expressions
@@ -409,5 +410,157 @@ theorem matches'_map (f : α → β) :
     rw [Language.kstar_eq_iSup_pow, Language.kstar_eq_iSup_pow]
     simp_rw [← map_pow]
     exact image_iUnion.symm
+
+@[simp]
+def pumping_const : RegularExpression α → ℕ
+  | 0 => 1
+  | 1 => 1
+  | char _ => 2
+  | P + Q => P.pumping_const + Q.pumping_const
+  | comp P Q => P.pumping_const + Q.pumping_const
+  | star P => P.pumping_const
+
+theorem pumping_const_ge_1 (P : RegularExpression α) : P.pumping_const >= 1 := by
+  induction P <;> rw [pumping_const] <;> linarith
+
+-- An argument-swapped version of Eq.subst
+private theorem subst' {r : α → Prop} {a b : α} (h : r a) (heq : a = b) : r b :=
+  heq ▸ h
+
+private theorem lang_le_mem (L₁ L₂ : Language α) (a : List α) : L₁ ≤ L₂ → a ∈ L₁ → a ∈ L₂ :=
+  fun a b ↦ a b
+
+private theorem lang_mul_kstar_le_kstar (L : Language α) (a : List α) : a ∈ L * L∗ → a ∈ L∗ := by
+  apply lang_le_mem
+  exact mul_kstar_le_kstar
+
+theorem nonempty_mem_star_eq_append (P : RegularExpression α) (x : List α)
+    (hx : x ∈ P.matches'∗) (hne : x ≠ []) :
+    ∃ x₁ x₂, x = x₁ ++ x₂ ∧ x₁ ∈ P.matches' ∧ x₂ ∈ P.matches'∗ := by
+  rw [← Language.one_add_self_mul_kstar_eq_kstar] at hx
+  obtain _ | ⟨a, _, b, _, _⟩ := hx
+  · contradiction
+  · tauto
+
+theorem replicate_append_mem_star (P : RegularExpression α) (x₁ x₂ : List α) (m : ℕ)
+    (hx₁ : x₁ ∈ P.matches') (hx₂ : x₂ ∈ P.matches'∗) :
+    (replicate m x₁).join ++ x₂ ∈ P.matches'∗ := by
+  induction m with
+  | zero => simpa
+  | succ m' ih =>
+    rw [replicate_succ, join_cons, append_assoc]
+    apply lang_mul_kstar_le_kstar
+    apply Language.append_mem_mul <;> assumption
+
+syntax "pump_auto" : tactic
+macro_rules
+| `(tactic| pump_auto) => `(tactic| (
+  split_ands
+  · try rw [join_cons]
+    first | assumption | ac_rfl
+  · simp only [matches', pumping_const, length_append, length_nil, zero_add] at *
+    linarith
+  · assumption
+  focus try tauto
+  ))
+
+theorem pumping_lemma (P : RegularExpression α) (x : List α)
+    (hx : x ∈ P.matches') (hlen : P.pumping_const ≤ x.length) :
+    ∃ a b c,
+      x = a ++ b ++ c ∧
+      a.length + b.length ≤ P.pumping_const ∧
+      b ≠ [] ∧
+      ∀ m, a ++ (replicate m b).join ++ c ∈ P.matches' := by
+  induction P generalizing x with
+  | zero =>
+    contradiction
+  | epsilon
+  | char _ =>
+    cases hx
+    contradiction
+  | plus P Q ihP ihQ =>
+    obtain hxP | hxQ := hx <;> [
+      have ⟨a, b, c, _, _, _, _⟩ := ihP x hxP (Nat.le_of_add_right_le hlen);
+      have ⟨a, b, c, _, _, _, _⟩ := ihQ x hxQ (le_of_add_le_right hlen)
+      ] <;>
+    · use a, b, c
+      pump_auto
+  | comp P Q ihP ihQ =>
+    obtain ⟨x₁, hx₁, x₂, hx₂, rfl⟩ := hx
+    by_cases hlen₁ : P.pumping_const ≤ x₁.length
+    · obtain ⟨a, b, c, rfl, _, _, ihm⟩ := ihP x₁ hx₁ hlen₁
+      use a, b, c ++ x₂
+      pump_auto
+      · intro m
+        apply subst'
+        · exact Language.append_mem_mul (ihm m) hx₂
+        · ac_rfl
+    · rw [length_append] at hlen
+      obtain _ | hlen₂ := le_or_le_of_add_le_add hlen; contradiction
+      obtain ⟨a, b, c, rfl, _, _, ihm⟩ := ihQ x₂ hx₂ hlen₂
+      use x₁ ++ a, b, c
+      pump_auto
+      · intro m
+        apply subst'
+        · exact Language.append_mem_mul hx₁ (ihm m)
+        · ac_rfl
+  | star P ih =>
+    have hne : x ≠ [] := by
+      rintro rfl
+      rw [pumping_const, length_nil] at hlen
+      have := pumping_const_ge_1 P
+      linarith
+    obtain ⟨x₁, x₂, rfl, hx₁, hx₂⟩ := nonempty_mem_star_eq_append P x hx hne
+    match le_or_gt P.pumping_const x₁.length with
+    | Or.inl hp =>
+      obtain ⟨a, b, c, rfl, _, _, ihm⟩ := ih x₁ hx₁ hp
+      use a, b, c ++ x₂
+      pump_auto
+      · intro m
+        apply lang_mul_kstar_le_kstar
+        apply subst'
+        · exact Language.append_mem_mul (ihm m) hx₂
+        · ac_rfl
+    | Or.inr _ =>
+      by_cases x₁ = []
+      · subst x₁
+        cases P with
+        | epsilon =>
+          simp only [matches', nil_append, kstar_one] at hx
+          subst x₂
+          contradiction
+        | zero
+        | char =>
+          contradiction
+        | plus P' Q
+        | comp P' Q =>
+          obtain ⟨S, rfl, hS⟩ := Language.mem_kstar_iff_exists_nonempty.mp hx₂
+          obtain _ | ⟨s, t⟩ := S; contradiction
+          have ⟨hs, _⟩ := hS s (by simp)
+          have ⟨ht, _⟩ := forall₂_and.mp (forall_mem_cons.mp hS).2
+          cases le_or_gt (P'.pumping_const + Q.pumping_const) s.length with
+          | inl hlen =>
+            obtain ⟨a, b, c, rfl, _, _, ihm⟩ := ih s hs hlen
+            use a, b, c ++ t.join
+            pump_auto
+            · intro m
+              apply lang_mul_kstar_le_kstar
+              apply subst'
+              · exact Language.append_mem_mul (ihm m) (Language.join_mem_kstar ht)
+              · ac_rfl
+          | inr _ =>
+            use [], s, t.join
+            pump_auto
+            · intro
+              apply replicate_append_mem_star
+              · exact hs
+              · exact Language.join_mem_kstar ht
+        | star P' =>
+          simp only [matches', pumping_const, length_nil, append_assoc, nil_append, kstar_idem] at *
+          exact ih x₂ hx₂ hlen
+      · use [], x₁, x₂
+        pump_auto
+        · intro
+          apply replicate_append_mem_star <;> assumption
 
 end RegularExpression
