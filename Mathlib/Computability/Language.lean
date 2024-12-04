@@ -53,6 +53,11 @@ instance : One (Language α) :=
 
 instance : Inhabited (Language α) := ⟨(∅ : Set _)⟩
 
+instance : HasSubset (Language α) := ⟨(· ≤ ·)⟩
+
+instance instAntisymm : IsAntisymm (Language α) (· ⊆ ·) :=
+  show IsAntisymm (Language α) (· ≤ ·) by infer_instance
+
 /-- The sum of two languages is their union. -/
 instance : Add (Language α) :=
   ⟨((· ∪ ·) : Set (List α) → Set (List α) → Set (List α))⟩
