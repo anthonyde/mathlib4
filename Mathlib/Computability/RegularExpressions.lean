@@ -456,15 +456,20 @@ theorem replicate_append_mem_star (P : RegularExpression α) (x₁ x₂ : List �
     apply lang_mul_kstar_le_kstar
     apply Language.append_mem_mul <;> assumption
 
+/-- A tactic to discharge cases of the pumping lemma --/
 syntax "pump_auto" : tactic
 macro_rules
 | `(tactic| pump_auto) => `(tactic| (
   split_ands
-  · try rw [join_cons]
+  · -- x = a ++ b ++ c
+    try rw [join_cons]
     first | assumption | ac_rfl
-  · simp only [matches', pumping_const, length_append, length_nil, zero_add] at *
+  · -- a.length + b.length ≤ P.pumping_const
+    simp only [matches', pumping_const, length_append, length_nil, zero_add] at *
     linarith
-  · assumption
+  · -- b ≠ []
+    assumption
+  -- ∀ m, a ++ (replicate m b).join ++ c ∈ P.matches'
   focus try tauto
   ))
 
