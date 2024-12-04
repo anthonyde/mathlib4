@@ -1273,6 +1273,24 @@ theorem WithTop.range_eq {α β} (f : WithTop α → β) :
     range f = insert (f ⊤) (range (f ∘ WithBot.some : α → β)) :=
   Option.range_eq f
 
+/-! ### Images and preimages on `Sum` -/
+
+namespace Sum
+
+theorem sum_image_elim_iff {α β} (a : Set α) (b : Set β) (c : Set (α ⊕ β)) :
+    @Sum.inl α β '' a ⊆ c ∧ @Sum.inr α β '' b ⊆ c ↔ setOf (Sum.elim a b) ⊆ c := by
+  constructor
+  · intro h
+    rw [setOf_set]
+    intro x hx
+    cases x <;> simp only [Set.mem_def, Sum.elim_inl] at hx
+    · exact image_subset_iff.mp h.1 hx
+    · exact image_subset_iff.mp h.2 hx
+  · intro h
+    constructor <;> exact image_subset_iff.mpr (fun _ x ↦ h x)
+
+end Sum
+
 namespace Set
 
 open Function

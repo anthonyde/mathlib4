@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2021 Fox Thomson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Fox Thomson, Yaël Dillies
+Authors: Fox Thomson, Yaël Dillies, Anthony DeRossi
 -/
 import Mathlib.Computability.NFA
 
@@ -63,6 +63,50 @@ theorem εClosure_empty : M.εClosure ∅ = ∅ :=
 theorem εClosure_univ : M.εClosure univ = univ :=
   eq_univ_of_univ_subset <| subset_εClosure _ _
 
+@[simp]
+theorem εClosure_idem (S : Set σ) : M.εClosure (M.εClosure S) = M.εClosure S := by
+  ext s
+  constructor <;> intro h
+  · induction h
+    · assumption
+    · apply εClosure.step <;> assumption
+  · apply subset_εClosure
+    assumption
+
+theorem εClosure_subset (S₁ S₂ : Set σ) : S₁ ⊆ S₂ → M.εClosure S₁ ⊆ M.εClosure S₂ := by
+  intro _ _ h
+  induction h
+  · tauto
+  · apply εClosure.step <;> assumption
+
+theorem εClosure_subset' (S₁ S₂ : Set σ) : S₁ ⊆ M.εClosure S₂ → M.εClosure S₁ ⊆ M.εClosure S₂ := by
+  intro h
+  apply M.εClosure_subset at h
+  rw [εClosure_idem] at h
+  assumption
+
+@[simp]
+theorem εClosure_iUnion (S : Set σ) (f : σ → Set σ) :
+    M.εClosure (⋃ s ∈ S, f s) = ⋃ s ∈ S, M.εClosure (f s) := by
+  ext s
+  constructor
+  · intro h
+    induction' h with _ ht _ _ _ _ ht
+      <;> simp only [mem_iUnion, exists_prop'] at *
+      <;> obtain ⟨t, _, _⟩ := ht
+      <;> use t
+    · tauto
+    · constructor
+      · assumption
+      · apply εClosure.step <;> assumption
+  · simp only [mem_iUnion, nonempty_prop, forall_exists_index, and_imp]
+    intro _ _ h
+    induction h
+    · constructor
+      simp only [mem_iUnion, exists_prop']
+      tauto
+    · apply εClosure.step <;> assumption
+
 /-- `M.stepSet S a` is the union of the ε-closure of `M.step s a` for all `s ∈ S`. -/
 def stepSet (S : Set σ) (a : α) : Set σ :=
   ⋃ s ∈ S, M.εClosure (M.step s a)
@@ -76,6 +120,13 @@ theorem mem_stepSet_iff : s ∈ M.stepSet S a ↔ ∃ t ∈ S, s ∈ M.εClosure
 @[simp]
 theorem stepSet_empty (a : α) : M.stepSet ∅ a = ∅ := by
   simp_rw [stepSet, mem_empty_iff_false, iUnion_false, iUnion_empty]
+
+theorem stepSet_subset (S₁ S₂ : Set σ) (a : α) : S₁ ⊆ S₂ → M.stepSet S₁ a ⊆ M.stepSet S₂ a := by
+  simp only [stepSet, iUnion_subset_iff]
+  intro _ s _ _ _
+  rw [mem_iUnion]
+  use s
+  constructor <;> tauto
 
 variable (M)
 
@@ -102,6 +153,26 @@ theorem evalFrom_empty (x : List α) : M.evalFrom ∅ x = ∅ := by
   induction' x using List.reverseRecOn with x a ih
   · rw [evalFrom_nil, εClosure_empty]
   · rw [evalFrom_append_singleton, ih, stepSet_empty]
+
+theorem evalFrom_εClosure_subset' (S₁ S₂ : Set σ) (x : List α) :
+    S₁ ⊆ M.εClosure S₂ → M.evalFrom S₁ x ⊆ M.evalFrom S₂ x := by
+  intro h
+  induction' x using List.reverseRecOn with _ _ ih
+  · rw [evalFrom_nil]
+    apply εClosure_subset'
+    assumption
+  · simp only [ih, evalFrom_append_singleton, stepSet_subset]
+
+@[simp]
+theorem εClosure_evalFrom (S : Set σ) (x : List α) :
+    M.εClosure (M.evalFrom S x) = M.evalFrom S x := by
+  apply Subset.antisymm
+  · cases x using List.reverseRecOn
+    · rw [evalFrom_nil, εClosure_idem]
+    · rw [evalFrom_append_singleton]
+      simp only [stepSet]
+      rw [← εClosure_iUnion, εClosure_idem]
+  · apply subset_εClosure
 
 /-- `M.eval x` computes all possible paths through `M` with input `x` starting at an element of
 `M.start`. -/
