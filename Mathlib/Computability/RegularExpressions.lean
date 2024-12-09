@@ -438,17 +438,17 @@ private theorem lang_mul_kstar_le_kstar (L : Language α) (a : List α) : a ∈ 
   apply lang_le_mem
   exact mul_kstar_le_kstar
 
-theorem nonempty_mem_star_eq_append (P : RegularExpression α) (x : List α)
-    (hx : x ∈ P.matches'∗) (hne : x ≠ []) :
-    ∃ x₁ x₂, x = x₁ ++ x₂ ∧ x₁ ∈ P.matches' ∧ x₂ ∈ P.matches'∗ := by
+theorem nonempty_mem_star_eq_append (L : Language α) (x : List α)
+    (hx : x ∈ L∗) (hne : x ≠ []) :
+    ∃ x₁ x₂, x = x₁ ++ x₂ ∧ x₁ ∈ L ∧ x₂ ∈ L∗ := by
   rw [← Language.one_add_self_mul_kstar_eq_kstar] at hx
   obtain _ | ⟨a, _, b, _, _⟩ := hx
   · contradiction
   · tauto
 
-theorem replicate_append_mem_star (P : RegularExpression α) (x₁ x₂ : List α) (m : ℕ)
-    (hx₁ : x₁ ∈ P.matches') (hx₂ : x₂ ∈ P.matches'∗) :
-    (replicate m x₁).join ++ x₂ ∈ P.matches'∗ := by
+theorem replicate_append_mem_star (L : Language α) (x₁ x₂ : List α) (m : ℕ)
+    (hx₁ : x₁ ∈ L) (hx₂ : x₂ ∈ L∗) :
+    (replicate m x₁).join ++ x₂ ∈ L∗ := by
   induction m with
   | zero => simpa
   | succ m' ih =>
@@ -519,7 +519,7 @@ theorem pumping_lemma (P : RegularExpression α) (x : List α)
       rw [pumping_const, length_nil] at hlen
       have := pumping_const_ge_1 P
       linarith
-    obtain ⟨x₁, x₂, rfl, hx₁, hx₂⟩ := nonempty_mem_star_eq_append P x hx hne
+    obtain ⟨x₁, x₂, rfl, hx₁, hx₂⟩ := nonempty_mem_star_eq_append _ x hx hne
     match le_or_gt P.pumping_const x₁.length with
     | Or.inl hp =>
       obtain ⟨a, b, c, rfl, _, _, ihm⟩ := ih x₁ hx₁ hp
