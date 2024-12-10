@@ -581,10 +581,10 @@ variable {σ σ₁ σ₂: Type*}
 /-! ### Definitions -/
 
 /-- The `εNFA` for `zero` has no transitions. -/
-def zero_step : Unit → Option α → Set Unit
+def zero_step : Empty → Option α → Set Empty
   | _, _ => ∅
-def zero_start : Set Unit := ∅
-def zero_accept : Set Unit := ∅
+def zero_start : Set Empty := ∅
+def zero_accept : Set Empty := ∅
 
 /-- The `εNFA` for `epsilon` only has an ε-transition from the starting state to the accepting
   state. -/
@@ -644,7 +644,7 @@ def star_accept : Set (Option Unit ⊕ σ) := {Sum.inl (some ())}
 
 /-- `P.St` is the node type for the `εNFA` constructed by `P.toεNFA` -/
 def St : RegularExpression α → Type
-  | 0 => Unit
+  | 0 => Empty
   | 1 => Option Unit
   | char _ => Option Unit
   | P + Q => Option Unit ⊕ St P ⊕ St Q
